@@ -1,10 +1,17 @@
-FROM rust:slim AS builder
-SHELL ["/bin/bash", "-uo", "pipefail", "-c"]
+FROM rust:alpine AS builder
+SHELL ["/bin/ash", "-uo", "pipefail", "-c"]
 
+RUN apk add --update --no-cache gpg gpg-agent wget build-base musl tar xz
 RUN cargo install oxipng --locked
 
-ENV TARGET x86_64-unknown-linux-musl
-RUN rustup target add "$TARGET"
+ARG TARGETPLATFORM
+RUN case "$TARGETPLATFORM" in \
+      "linux/amd64") echo "x86_64-unknown-linux-musl" > /.platform ;; \
+      "linux/arm64") echo "aarch64-unknown-linux-musl" > /.platform ;; \
+      *) echo "Unsupported platform: $TARGETPLATFORM"; exit 1 ;; \
+    esac
+
+RUN rustup target add $(cat /.platform)
 
 # Update this version when a new version of element is released
 ENV ELEMENT_VERSION 1.11.38
@@ -12,18 +19,16 @@ ENV ELEMENT_VERSION 1.11.38
 RUN mkdir /src
 WORKDIR /src
 COPY . .
-RUN cargo build --release --locked --target "$TARGET" \
- && mv "target/$TARGET/release/element" . \
+RUN cargo build --release --locked --target $(cat /.platform) \
+ && mv "target/$(cat /.platform)/release/element" . \
  && strip element
 
 WORKDIR /
 COPY E95B7699E80B68A9EAD9A19A2BAA9B8552BD9047.key .
-RUN apt-get -y update \
- && apt-get -y install gpg wget \
- && wget -qO element.tar.gz "https://github.com/vector-im/element-web/releases/download/v$ELEMENT_VERSION/element-v$ELEMENT_VERSION.tar.gz" \
+RUN wget -qO element.tar.gz "https://github.com/vector-im/element-web/releases/download/v$ELEMENT_VERSION/element-v$ELEMENT_VERSION.tar.gz" \
  && wget -qO element.tar.gz.asc "https://github.com/vector-im/element-web/releases/download/v$ELEMENT_VERSION/element-v$ELEMENT_VERSION.tar.gz.asc" \
  && gpg --batch --import E95B7699E80B68A9EAD9A19A2BAA9B8552BD9047.key \
- && gpg --batch --verify element.tar.gz{.asc,} \
+ && gpg --batch --verify element.tar.gz.asc element.tar.gz \
  && mkdir -p /opt/element \
  && tar xfz element.tar.gz --strip-components=1 -C /opt/element \
  && rm /opt/element/config.sample.json; \

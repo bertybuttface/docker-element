@@ -6,26 +6,46 @@ on:
 jobs:
   docker:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: 
+          - "linux/amd64"
+          - "linux/arm64"
     steps:
       - uses: actions/checkout@v3
-      
+      - # Add support for more platforms with QEMU (optional)
+        # https://github.com/docker/setup-qemu-action
+        name: Set up QEMU
+        if: ${{ inputs.platforms != 'linux/amd64' }}
+        uses: docker/setup-qemu-action@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      - name: Login to GitHub Container Registry
+        run: docker login -u msrd0 -p "${{secrets.GITHUB_TOKEN}}" ghcr.io
       - name: Build and Push Docker Image
         run: |
-          image="ghcr.io/msrd0/element"
-          docker pull "$image:cache" || true
+          image="ghcr.io/bertybuttface/element"
+          cache_suffix=""
+          if [ "${{ matrix.platform }}" == "linux/arm64" ]; then
+            cache_suffix="-arm"
+          fi
+
+          docker pull "$image:cache$cache_suffix" || true
           docker build . \
             --pull \
+            --platform "${{ matrix.platform }}" \
             --target builder \
-            --cache-from "$image:cache" \
-            --tag "$image:cache"
+            --cache-from "$image:cache$cache_suffix" \
+            --tag "$image:cache$cache_suffix"
           docker build . \
             --pull \
-            --cache-from "$image:cache" \
-            --tag "$image"
-          version="$(docker run --rm "$image" /bin/element version)"
-          docker tag "$image" "$image:$version"
-          
-          docker login -u msrd0 -p "${{secrets.GITHUB_TOKEN}}" ghcr.io
-          docker push "$image:cache"
-          docker push "$image:$version"
-          docker push "$image"
+            --platform "${{ matrix.platform }}" \
+            --cache-from "$image:cache$cache_suffix" \
+            --tag "$image$cache_suffix"
+          version="$(docker run --rm "$image$cache_suffix" /bin/element version)"
+          docker tag "$image$cache_suffix" "$image$cache_suffix:$version"
+
+          docker push "$image:cache$cache_suffix"
+          docker push "$image$cache_suffix:$version"
+          docker push "$image$cache_suffix"
