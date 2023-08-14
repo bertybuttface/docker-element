@@ -1,7 +1,6 @@
-FROM rust:alpine AS builder
-SHELL ["/bin/ash", "-uo", "pipefail", "-c"]
+FROM rust:slim AS builder
+SHELL ["/bin/bash", "-uo", "pipefail", "-c"]
 
-RUN apk add --update --no-cache gpg gpg-agent wget build-base musl tar xz
 RUN cargo install oxipng --locked
 
 ARG TARGETPLATFORM
@@ -25,7 +24,9 @@ RUN cargo build --release --locked --target $(cat /.platform) \
 
 WORKDIR /
 COPY E95B7699E80B68A9EAD9A19A2BAA9B8552BD9047.key .
-RUN wget -qO element.tar.gz "https://github.com/vector-im/element-web/releases/download/v$ELEMENT_VERSION/element-v$ELEMENT_VERSION.tar.gz" \
+RUN apt-get -y update \
+ && apt-get -y install gpg wget \
+ && wget -qO element.tar.gz "https://github.com/vector-im/element-web/releases/download/v$ELEMENT_VERSION/element-v$ELEMENT_VERSION.tar.gz" \
  && wget -qO element.tar.gz.asc "https://github.com/vector-im/element-web/releases/download/v$ELEMENT_VERSION/element-v$ELEMENT_VERSION.tar.gz.asc" \
  && gpg --batch --import E95B7699E80B68A9EAD9A19A2BAA9B8552BD9047.key \
  && gpg --batch --verify element.tar.gz.asc element.tar.gz \
