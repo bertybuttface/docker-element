@@ -38,6 +38,8 @@ jobs:
         run: |
           sed -E -i Dockerfile \
               -e "s|^ENV ELEMENT_VERSION.*$|ENV ELEMENT_VERSION ${{steps.element.outputs.version}}|"
+          sed -E -i Dockerfile .github/workflows/cross.yml \
+              -e "s|^ENV ELEMENT_VERSION.*$|ENV ELEMENT_VERSION ${{steps.element.outputs.version}}|"
       
       - name: Update Crates
         run: cargo update

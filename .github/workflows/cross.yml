@@ -1,0 +1,48 @@
+name: Cross
+on:
+  push:
+    branches: [main]
+
+jobs:
+  cross_build:
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          # - i686-unknown-linux-musl
+          - x86_64-unknown-linux-musl
+          # - arm-unknown-linux-musleabihf
+          # - armv7-unknown-linux-musleabihf
+          - aarch64-unknown-linux-musl
+          - x86_64-unknown-linux-gnu
+          - aarch64-unknown-linux-gnu
+          # - x86_64-pc-windows-gnu
+    name: ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@stable
+        id: "rust-toolchain"
+      - name: install cross
+        uses: baptiste0928/cargo-install@v2
+        with:
+          crate: cross
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/git
+            ~/.cargo/registry
+            target
+          key: "${{runner.os}} Target ${{ matrix.target }} Rust ${{steps.rust-toolchain.outputs.cachekey}} Lock ${{hashFiles('Cargo.lock')}}"
+      - run: cross build --release --locked --target ${{ matrix.target }}
+        env:
+          RUST_BACKTRACE: 1
+          ELEMENT_VERSION: 1.11.38
+          CROSS_BUILD_ENV_PASSTHROUGH: "ELEMENT_VERSION"
+      - run: tree
+      - name: 'Upload Artifact'
+        uses: actions/upload-artifact@v3
+        with:
+          name: "${{ matrix.target }}"
+          path: |
+            target/${{ matrix.target }}/release/element
